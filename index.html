@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isometric Map Puzzle Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-gray-300 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <h1 class="text-4xl mb-4 text-yellow-400">Isometric Terraformer</h1>
+    <p class="mb-4">Place objects to raise and lower the world!</p>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="controls">
+        <button class="tool-btn" data-tool="fountain">? Fountain</button>
+        <button class="tool-btn" data-tool="excavator">?? Excavator</button>
+        <button class="tool-btn" data-tool="obelisk">?? Obelisk</button>
+        <button class="tool-btn" data-tool="tree">?? Tree</button>
+        <button class="action-btn" id="resetButton">Reset World</button>
+    </div>
+
+    <div id="message-box"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
