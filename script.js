@@ -1,0 +1,307 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const resetButton = document.getElementById('resetButton');
+const toolButtons = document.querySelectorAll('.tool-btn');
+const messageBox = document.getElementById('message-box');
+
+// --- Game Configuration ---
+const gridSize = 16;
+const isoTileWidth = 64;
+const isoTileHeight = 32;
+const heightStep = isoTileHeight / 2; // Pixel height of one level
+
+canvas.width = (gridSize + 1) * isoTileWidth;
+canvas.height = (gridSize * isoTileHeight / 2) + 400; // Extra height for tall maps
+
+// --- Tile & Object Definitions ---
+const TILE_TYPES = {
+    GRASS: { id: 0, top: '#68d391', side: '#48bb78' },
+    WATER: { id: 1, top: '#4299e1', side: '#3182ce' },
+    STONE: { id: 2, top: '#a0aec0', side: '#718096' },
+    SAND: { id: 3, top: '#f6e05e', side: '#ecc94b' },
+};
+
+const OBJECT_TYPES = {
+    fountain: { symbol: '?', effect: 'raise_water' },
+    excavator: { symbol: '??', effect: 'lower_terrain' },
+    obelisk: { symbol: '??', effect: 'raise_terrain' },
+    tree: { symbol: '??', effect: 'spread_grass' },
+};
+
+let map = [];
+let objects = [];
+let selectedTool = null;
+let hoveredTile = null; // To store coordinates of the hovered tile
+let lastUpdateTime = 0;
+const updateInterval = 500; // ms
+
+// --- Coordinate Conversion ---
+
+function isoToScreen(x, y) {
+    const screenX = (x - y) * (isoTileWidth / 2) + (canvas.width / 2) - (isoTileWidth / 2);
+    const screenY = (x + y) * (isoTileHeight / 2);
+    return { x: screenX, y: screenY };
+}
+
+function screenToIso(mouseX, mouseY) {
+    // Adjust mouse Y for the canvas offset
+    const adjustedMouseY = mouseY - 100;
+    for (let y = gridSize - 1; y >= 0; y--) {
+        for (let x = gridSize - 1; x >= 0; x--) {
+            const tile = map[y][x];
+            const screenPos = isoToScreen(x, y);
+            const tileY = screenPos.y - tile.height * heightStep;
+
+            const dx = mouseX - screenPos.x - (isoTileWidth / 2);
+            const dy = adjustedMouseY - tileY - (isoTileHeight / 2);
+
+            const transformedX = (dx / (isoTileWidth / 2)) + (dy / (isoTileHeight / 2));
+            const transformedY = (dy / (isoTileHeight / 2)) - (dx / (isoTileWidth / 2));
+
+            if (Math.abs(transformedX) < 1 && Math.abs(transformedY) < 1) {
+                return { x, y };
+            }
+        }
+    }
+    return null;
+}
+
+// --- Game Logic ---
+
+function generateMap() {
+    map = [];
+    for (let y = 0; y < gridSize; y++) {
+        map[y] = [];
+        for (let x = 0; x < gridSize; x++) {
+            const height = Math.floor(Math.random() * 2) + 1;
+            map[y][x] = { type: TILE_TYPES.GRASS.id, height: height };
+        }
+    }
+    const lakeY = Math.floor(gridSize / 2);
+    const lakeX = Math.floor(gridSize / 2);
+    for(let i = -2; i <= 2; i++) {
+        for(let j = -2; j <= 2; j++) {
+            if(Math.abs(i) + Math.abs(j) < 3 && map[lakeY+i] && map[lakeY+i][lakeX+j]) {
+                map[lakeY+i][lakeX+j] = { type: TILE_TYPES.WATER.id, height: 0 };
+            }
+        }
+    }
+}
+
+function drawTile(x, y) {
+    const tile = map[y][x];
+    const screenPos = isoToScreen(x, y);
+    const tileY = screenPos.y - tile.height * heightStep;
+
+    const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
+    if (!tileInfo) return;
+
+    // Right side
+    const rightNeighbor = x < gridSize - 1 ? map[y][x+1] : null;
+    const rightHeightDiff = rightNeighbor ? tile.height - rightNeighbor.height : tile.height;
+    if (rightHeightDiff > 0) {
+        ctx.fillStyle = tileInfo.side;
+        ctx.beginPath();
+        ctx.moveTo(screenPos.x + isoTileWidth, tileY);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY + rightHeightDiff * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + rightHeightDiff * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Bottom side
+    const bottomNeighbor = y < gridSize - 1 ? map[y+1][x] : null;
+    const bottomHeightDiff = bottomNeighbor ? tile.height - bottomNeighbor.height : tile.height;
+    if (bottomHeightDiff > 0) {
+         ctx.fillStyle = tileInfo.side;
+         ctx.beginPath();
+         ctx.moveTo(screenPos.x, tileY);
+         ctx.lineTo(screenPos.x, tileY + bottomHeightDiff * heightStep);
+         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + bottomHeightDiff * heightStep);
+         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+         ctx.closePath();
+         ctx.fill();
+    }
+
+    // Top face
+    ctx.fillStyle = tileInfo.top;
+    ctx.beginPath();
+    ctx.moveTo(screenPos.x, tileY);
+    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+    ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(0, 100);
+
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            drawTile(x, y);
+        }
+    }
+
+    // Draw highlight on top of the hovered tile
+    if (hoveredTile) {
+        const { x, y } = hoveredTile;
+        const tile = map[y][x];
+        const screenPos = isoToScreen(x, y);
+        const tileY = screenPos.y - tile.height * heightStep;
+
+        ctx.strokeStyle = '#f6e05e'; // Bright yellow
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.9;
+
+        ctx.beginPath();
+        ctx.moveTo(screenPos.x, tileY);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0; // Reset alpha
+    }
+
+    // Draw objects
+    ctx.font = `${isoTileHeight * 0.9}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    objects.forEach(obj => {
+        const objectInfo = OBJECT_TYPES[obj.type];
+        const tile = map[obj.y][obj.x];
+        const screenPos = isoToScreen(obj.x, obj.y);
+        const objY = screenPos.y - tile.height * heightStep;
+        if (objectInfo) {
+            ctx.fillText(objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
+        }
+    });
+    ctx.restore();
+}
+
+function updateMap() {
+    const changes = [];
+    objects.forEach(obj => {
+        const tile = map[obj.y][obj.x];
+        getNeighbors(obj.x, obj.y).forEach(n => {
+            const neighborTile = map[n.y][n.x];
+            if (obj.effect === 'raise_terrain' && neighborTile.height < tile.height + 2) {
+                changes.push({ x: n.x, y: n.y, height: neighborTile.height + 1 });
+            }
+            if (obj.effect === 'lower_terrain' && neighborTile.height > 0) {
+                changes.push({ x: n.x, y: n.y, height: neighborTile.height - 1 });
+            }
+            if (obj.effect === 'raise_water' && neighborTile.type !== TILE_TYPES.WATER.id) {
+                 changes.push({ x: n.x, y: n.y, type: TILE_TYPES.WATER.id, height: tile.height });
+            }
+            if (obj.effect === 'spread_grass' && neighborTile.type !== TILE_TYPES.GRASS.id) {
+                 changes.push({ x: n.x, y: n.y, type: TILE_TYPES.GRASS.id });
+            }
+        });
+    });
+
+    changes.forEach(c => {
+        if(c.height !== undefined) map[c.y][c.x].height = c.height;
+        if(c.type !== undefined) map[c.y][c.x].type = c.type;
+    });
+}
+
+function getNeighbors(x, y) {
+    const neighbors = [];
+    const directions = [{ dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 }];
+    directions.forEach(dir => {
+        const newX = x + dir.dx;
+        const newY = y + dir.dy;
+        if (newX >= 0 && newX < gridSize && newY >= 0 && newY < gridSize) {
+            neighbors.push({ x: newX, y: newY });
+        }
+    });
+    return neighbors;
+}
+
+function gameLoop(timestamp) {
+    // Update game logic at a fixed interval
+    if (timestamp - lastUpdateTime > updateInterval) {
+        updateMap();
+        lastUpdateTime = timestamp;
+    }
+    // Draw every frame for smooth animations and hover effects
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+function showMessage(text, duration = 2000) {
+    messageBox.textContent = text;
+    messageBox.classList.add('show');
+    setTimeout(() => { messageBox.classList.remove('show'); }, duration);
+}
+
+// --- Event Handlers ---
+
+function handleCanvasMouseMove(event) {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    hoveredTile = screenToIso(mouseX, mouseY);
+}
+
+function handleCanvasMouseLeave(event) {
+    hoveredTile = null;
+}
+
+function handleCanvasClick(event) {
+    // Use the already calculated hoveredTile for clicking
+    if (!selectedTool) {
+        showMessage("Select a tool first!");
+        return;
+    }
+    if (hoveredTile) {
+        const { x, y } = hoveredTile;
+        const existingObject = objects.find(obj => obj.x === x && obj.y === y);
+        if (existingObject) {
+            showMessage("There's already an object here!");
+            return;
+        }
+        const objectInfo = OBJECT_TYPES[selectedTool];
+        objects.push({ x, y, type: selectedTool, effect: objectInfo.effect });
+    }
+}
+
+function handleToolSelect(event) {
+    const button = event.currentTarget;
+    const tool = button.dataset.tool;
+    if (selectedTool === tool) {
+        selectedTool = null;
+        button.classList.remove('selected');
+    } else {
+        toolButtons.forEach(btn => btn.classList.remove('selected'));
+        selectedTool = tool;
+        button.classList.add('selected');
+        showMessage(`${tool.charAt(0).toUpperCase() + tool.slice(1)} selected!`);
+    }
+}
+
+function resetGame() {
+    objects = [];
+    selectedTool = null;
+    hoveredTile = null;
+    toolButtons.forEach(btn => btn.classList.remove('selected'));
+    generateMap();
+}
+
+// --- Initialization ---
+canvas.addEventListener('click', handleCanvasClick);
+canvas.addEventListener('mousemove', handleCanvasMouseMove);
+canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+resetButton.addEventListener('click', resetGame);
+toolButtons.forEach(button => {
+    button.addEventListener('click', handleToolSelect);
+});
+
+resetGame();
+requestAnimationFrame(gameLoop);
