@@ -140,19 +140,6 @@ function drawTile(x, y) {
     const rightNeighbor = rightNeighborRotated ? map[rightNeighborRotated.y][rightNeighborRotated.x] : null;
     const bottomNeighbor = bottomNeighborRotated ? map[bottomNeighborRotated.y][bottomNeighborRotated.x] : null;
 
-    // The side wall along the screen's Y-axis direction (visually the "right" side of the tile)
-    const heightDiffY = bottomNeighbor ? tile.height - bottomNeighbor.height : tile.height;
-    if (heightDiffY > 0) {
-        ctx.fillStyle = tileInfo.side;
-        ctx.beginPath();
-        ctx.moveTo(screenPos.x + isoTileWidth, tileY);
-        ctx.lineTo(screenPos.x + isoTileWidth, tileY + heightDiffY * heightStep);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + heightDiffY * heightStep);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
-        ctx.closePath();
-        ctx.fill();
-    }
-
     // The side wall along the screen's X-axis direction (visually the "left" side of the tile)
     const heightDiffX = rightNeighbor ? tile.height - rightNeighbor.height : tile.height;
      if (heightDiffX > 0) {
@@ -164,6 +151,19 @@ function drawTile(x, y) {
          ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
          ctx.closePath();
          ctx.fill();
+    }
+
+    // The side wall along the screen's Y-axis direction (visually the "right" side of the tile)
+    const heightDiffY = bottomNeighbor ? tile.height - bottomNeighbor.height : tile.height;
+    if (heightDiffY > 0) {
+        ctx.fillStyle = tileInfo.side;
+        ctx.beginPath();
+        ctx.moveTo(screenPos.x + isoTileWidth, tileY);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY + heightDiffY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + heightDiffY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+        ctx.closePath();
+        ctx.fill();
     }
 
 
