@@ -133,31 +133,34 @@ function drawTile(x, y) {
     const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
     if (!tileInfo) return;
 
-    // To calculate shadows/sides correctly, we need to check neighbors in the *original* map orientation
-    const rightNeighborOriginal = rotated.x < gridSize - 1 ? map[rotated.y][rotated.x + 1] : null;
-    const bottomNeighborOriginal = rotated.y < gridSize - 1 ? map[rotated.y + 1][rotated.x] : null;
+    // To calculate shadows/sides correctly, we need to check neighbors in the *rotated* screen orientation
+    const rightNeighborRotated = x < gridSize - 1 ? getRotatedCoords(x + 1, y) : null;
+    const bottomNeighborRotated = y < gridSize - 1 ? getRotatedCoords(x, y + 1) : null;
 
-    // Right side (from the player's perspective)
-    const rightHeightDiff = rightNeighborOriginal ? tile.height - rightNeighborOriginal.height : tile.height;
-    if (rightHeightDiff > 0) {
+    const rightNeighbor = rightNeighborRotated ? map[rightNeighborRotated.y][rightNeighborRotated.x] : null;
+    const bottomNeighbor = bottomNeighborRotated ? map[bottomNeighborRotated.y][bottomNeighborRotated.x] : null;
+
+    // The side wall along the screen's Y-axis direction (visually the "right" side of the tile)
+    const heightDiffY = bottomNeighbor ? tile.height - bottomNeighbor.height : tile.height;
+    if (heightDiffY > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
         ctx.moveTo(screenPos.x + isoTileWidth, tileY);
-        ctx.lineTo(screenPos.x + isoTileWidth, tileY + rightHeightDiff * heightStep);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + rightHeightDiff * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY + heightDiffY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + heightDiffY * heightStep);
         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
         ctx.closePath();
         ctx.fill();
     }
 
-    // Bottom side (from the player's perspective)
-    const bottomHeightDiff = bottomNeighborOriginal ? tile.height - bottomNeighborOriginal.height : tile.height;
-     if (bottomHeightDiff > 0) {
+    // The side wall along the screen's X-axis direction (visually the "left" side of the tile)
+    const heightDiffX = rightNeighbor ? tile.height - rightNeighbor.height : tile.height;
+     if (heightDiffX > 0) {
          ctx.fillStyle = tileInfo.side;
          ctx.beginPath();
          ctx.moveTo(screenPos.x, tileY);
-         ctx.lineTo(screenPos.x, tileY + bottomHeightDiff * heightStep);
-         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + bottomHeightDiff * heightStep);
+         ctx.lineTo(screenPos.x, tileY + heightDiffX * heightStep);
+         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + heightDiffX * heightStep);
          ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
          ctx.closePath();
          ctx.fill();
