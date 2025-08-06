@@ -13,7 +13,11 @@
     <h1 class="text-4xl mb-4 text-yellow-400">Isometric Terraformer</h1>
     <p class="mb-4">Place objects to raise and lower the world!</p>
 
-    <canvas id="gameCanvas"></canvas>
+    <div class="canvas-container">
+        <button id="rotateLeft" class="rotate-btn left-btn"><span>&#x21A9;</span></button>
+        <canvas id="gameCanvas"></canvas>
+        <button id="rotateRight" class="rotate-btn right-btn"><span>&#x21AA;</span></button>
+    </div>
 
     <div class="controls">
         <button class="tool-btn" data-tool="fountain">? Fountain</button>
