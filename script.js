@@ -1,6 +1,8 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const resetButton = document.getElementById('resetButton');
+const rotateLeftButton = document.getElementById('rotateLeft');
+const rotateRightButton = document.getElementById('rotateRight');
 const toolButtons = document.querySelectorAll('.tool-btn');
 const messageBox = document.getElementById('message-box');
 
@@ -34,8 +36,29 @@ let selectedTool = null;
 let hoveredTile = null; // To store coordinates of the hovered tile
 let lastUpdateTime = 0;
 const updateInterval = 500; // ms
+let rotation = 0; // 0: 0 deg, 1: 90 deg, 2: 180 deg, 3: 270 deg
 
 // --- Coordinate Conversion ---
+
+function getRotatedCoords(x, y) {
+    switch (rotation) {
+        case 0: return { x, y }; // 0 degrees
+        case 1: return { x: gridSize - 1 - y, y: x }; // 90 degrees
+        case 2: return { x: gridSize - 1 - x, y: gridSize - 1 - y }; // 180 degrees
+        case 3: return { x: y, y: gridSize - 1 - x }; // 270 degrees
+        default: return { x, y };
+    }
+}
+
+function getInverseRotatedCoords(x, y) {
+    switch (rotation) {
+        case 0: return { x, y }; // 0 degrees
+        case 1: return { x: y, y: gridSize - 1 - x }; // Inverse 90 degrees
+        case 2: return { x: gridSize - 1 - x, y: gridSize - 1 - y }; // Inverse 180 degrees
+        case 3: return { x: gridSize - 1 - y, y: x }; // Inverse 270 degrees
+        default: return { x, y };
+    }
+}
 
 function isoToScreen(x, y) {
     const screenX = (x - y) * (isoTileWidth / 2) + (canvas.width / 2) - (isoTileWidth / 2);
@@ -44,25 +67,38 @@ function isoToScreen(x, y) {
 }
 
 function screenToIso(mouseX, mouseY) {
-    // Adjust mouse Y for the canvas offset
-    const adjustedMouseY = mouseY - 100;
-    for (let y = gridSize - 1; y >= 0; y--) {
-        for (let x = gridSize - 1; x >= 0; x--) {
-            const tile = map[y][x];
+    const adjustedMouseY = mouseY - 100; // Adjust for canvas top offset
+
+    // Iterate through the grid from front to back to respect draw order
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            // Get the actual map coordinates for this screen grid position
+            const mapCoords = getRotatedCoords(x, y);
+            const tile = map[mapCoords.y][mapCoords.x];
             const screenPos = isoToScreen(x, y);
             const tileY = screenPos.y - tile.height * heightStep;
 
-            const dx = mouseX - screenPos.x - (isoTileWidth / 2);
-            const dy = adjustedMouseY - tileY - (isoTileHeight / 2);
+            // Simple check if the mouse is within the general area of the tile
+            if (
+                mouseX >= screenPos.x &&
+                mouseX <= screenPos.x + isoTileWidth &&
+                adjustedMouseY >= tileY - isoTileHeight &&
+                adjustedMouseY <= tileY + isoTileHeight
+            ) {
+                 // More precise diamond check
+                const dx = mouseX - (screenPos.x + isoTileWidth / 2);
+                const dy = adjustedMouseY - tileY;
 
-            const transformedX = (dx / (isoTileWidth / 2)) + (dy / (isoTileHeight / 2));
-            const transformedY = (dy / (isoTileHeight / 2)) - (dx / (isoTileWidth / 2));
+                const transformedX = (dx / (isoTileWidth / 2)) + (dy / (isoTileHeight / 2));
+                const transformedY = (dy / (isoTileHeight / 2)) - (dx / (isoTileWidth / 2));
 
-            if (Math.abs(transformedX) < 1 && Math.abs(transformedY) < 1) {
-                return { x, y };
+                if (Math.abs(transformedX) < 1 && Math.abs(transformedY) < 1) {
+                    return mapCoords; // Return the actual map coordinates
+                }
             }
         }
     }
+
     return null;
 }
 
@@ -89,16 +125,20 @@ function generateMap() {
 }
 
 function drawTile(x, y) {
-    const tile = map[y][x];
+    const rotated = getRotatedCoords(x, y);
+    const tile = map[rotated.y][rotated.x];
     const screenPos = isoToScreen(x, y);
     const tileY = screenPos.y - tile.height * heightStep;
 
     const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
     if (!tileInfo) return;
 
-    // Right side
-    const rightNeighbor = x < gridSize - 1 ? map[y][x+1] : null;
-    const rightHeightDiff = rightNeighbor ? tile.height - rightNeighbor.height : tile.height;
+    // To calculate shadows/sides correctly, we need to check neighbors in the *original* map orientation
+    const rightNeighborOriginal = rotated.x < gridSize - 1 ? map[rotated.y][rotated.x + 1] : null;
+    const bottomNeighborOriginal = rotated.y < gridSize - 1 ? map[rotated.y + 1][rotated.x] : null;
+
+    // Right side (from the player's perspective)
+    const rightHeightDiff = rightNeighborOriginal ? tile.height - rightNeighborOriginal.height : tile.height;
     if (rightHeightDiff > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
@@ -110,10 +150,9 @@ function drawTile(x, y) {
         ctx.fill();
     }
 
-    // Bottom side
-    const bottomNeighbor = y < gridSize - 1 ? map[y+1][x] : null;
-    const bottomHeightDiff = bottomNeighbor ? tile.height - bottomNeighbor.height : tile.height;
-    if (bottomHeightDiff > 0) {
+    // Bottom side (from the player's perspective)
+    const bottomHeightDiff = bottomNeighborOriginal ? tile.height - bottomNeighborOriginal.height : tile.height;
+     if (bottomHeightDiff > 0) {
          ctx.fillStyle = tileInfo.side;
          ctx.beginPath();
          ctx.moveTo(screenPos.x, tileY);
@@ -123,6 +162,7 @@ function drawTile(x, y) {
          ctx.closePath();
          ctx.fill();
     }
+
 
     // Top face
     ctx.fillStyle = tileInfo.top;
@@ -140,6 +180,7 @@ function draw() {
     ctx.save();
     ctx.translate(0, 100);
 
+    // Draw tiles
     for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
             drawTile(x, y);
@@ -148,39 +189,53 @@ function draw() {
 
     // Draw highlight on top of the hovered tile
     if (hoveredTile) {
-        const { x, y } = hoveredTile;
-        const tile = map[y][x];
-        const screenPos = isoToScreen(x, y);
-        const tileY = screenPos.y - tile.height * heightStep;
+        // We need to find the screen position of the hovered tile
+        // by iterating through the grid and finding the matching original coordinates.
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                const rotated = getRotatedCoords(x, y);
+                if (rotated.x === hoveredTile.x && rotated.y === hoveredTile.y) {
+                    const tile = map[hoveredTile.y][hoveredTile.x];
+                    const screenPos = isoToScreen(x, y);
+                    const tileY = screenPos.y - tile.height * heightStep;
 
-        ctx.strokeStyle = '#f6e05e'; // Bright yellow
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.9;
-
-        ctx.beginPath();
-        ctx.moveTo(screenPos.x, tileY);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
-        ctx.lineTo(screenPos.x + isoTileWidth, tileY);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
-        ctx.closePath();
-        ctx.stroke();
-
-        ctx.globalAlpha = 1.0; // Reset alpha
+                    ctx.strokeStyle = '#f6e05e'; // Bright yellow
+                    ctx.lineWidth = 3;
+                    ctx.globalAlpha = 0.9;
+                    ctx.beginPath();
+                    ctx.moveTo(screenPos.x, tileY);
+                    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+                    ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+                    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0; // Reset alpha
+                    break;
+                }
+            }
+        }
     }
+
 
     // Draw objects
     ctx.font = `${isoTileHeight * 0.9}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    objects.forEach(obj => {
-        const objectInfo = OBJECT_TYPES[obj.type];
-        const tile = map[obj.y][obj.x];
-        const screenPos = isoToScreen(obj.x, obj.y);
-        const objY = screenPos.y - tile.height * heightStep;
-        if (objectInfo) {
-            ctx.fillText(objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
+     for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const rotated = getRotatedCoords(x, y);
+            const obj = objects.find(o => o.x === rotated.x && o.y === rotated.y);
+            if (obj) {
+                 const objectInfo = OBJECT_TYPES[obj.type];
+                 const tile = map[rotated.y][rotated.x];
+                 const screenPos = isoToScreen(x, y);
+                 const objY = screenPos.y - tile.height * heightStep;
+                 if (objectInfo) {
+                    ctx.fillText(objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
+                 }
+            }
         }
-    });
+    }
     ctx.restore();
 }
 
@@ -299,6 +354,12 @@ canvas.addEventListener('click', handleCanvasClick);
 canvas.addEventListener('mousemove', handleCanvasMouseMove);
 canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
 resetButton.addEventListener('click', resetGame);
+rotateLeftButton.addEventListener('click', () => {
+    rotation = (rotation - 1 + 4) % 4;
+});
+rotateRightButton.addEventListener('click', () => {
+    rotation = (rotation + 1) % 4;
+});
 toolButtons.forEach(button => {
     button.addEventListener('click', handleToolSelect);
 });
