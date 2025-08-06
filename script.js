@@ -67,28 +67,37 @@ function isoToScreen(x, y) {
 }
 
 function screenToIso(mouseX, mouseY) {
-    const adjustedMouseY = mouseY - 100; // Adjust for canvas top offset
+    // Adjust mouse position to be relative to the center of the isometric grid space
+    const adjustedMouseX = mouseX - (canvas.width / 2);
+    // We also need to account for the tile's own height offset in the Y, which we can't know yet.
+    // So, we iterate through possible height levels. This is a simplification.
+    // A more accurate way would involve a more complex reverse projection.
+    const adjustedMouseY = mouseY - 100;
 
-    for (let y = 0; y < gridSize; y++) {
-        for (let x = 0; x < gridSize; x++) {
-            const rotated = getRotatedCoords(x, y);
-            const tile = map[rotated.y][rotated.x];
-            const screenPos = isoToScreen(x, y);
+    // Reverse the isometric projection formula
+    const isoGridX = Math.floor(
+        (adjustedMouseX / (isoTileWidth / 2) + adjustedMouseY / (isoTileHeight / 2)) / 2
+    );
+    const isoGridY = Math.floor(
+        (adjustedMouseY / (isoTileHeight / 2) - adjustedMouseX / (isoTileWidth / 2)) / 2
+    );
+
+    // Now, apply the inverse rotation to these grid coordinates to get the original map coordinates
+    if (isoGridX >= 0 && isoGridX < gridSize && isoGridY >= 0 && isoGridY < gridSize) {
+        const mapCoords = getInverseRotatedCoords(isoGridX, isoGridY);
+        // Final check to ensure the calculated coordinates are within the map bounds
+        if (mapCoords.x >= 0 && mapCoords.x < gridSize && mapCoords.y >= 0 && mapCoords.y < gridSize) {
+             // We need to do a final check based on the tile height
+            const tile = map[mapCoords.y][mapCoords.x];
+            const screenPos = isoToScreen(isoGridX, isoGridY);
             const tileY = screenPos.y - tile.height * heightStep;
 
-            // Check if the mouse is within the diamond shape of the tile top
-            const dx = mouseX - (screenPos.x + isoTileWidth / 2);
-            const dy = adjustedMouseY - tileY;
-
-            const transformedX = (dx / (isoTileWidth / 2)) + (dy / (isoTileHeight / 2));
-            const transformedY = (dy / (isoTileHeight / 2)) - (dx / (isoTileWidth / 2));
-
-            if (Math.abs(transformedX) < 1 && Math.abs(transformedY) < 1) {
-                // If found, we need to return the *original* map coordinates
-                return getInverseRotatedCoords(x,y);
+            if (Math.abs(mouseY - 100 - tileY) < isoTileHeight) {
+                 return mapCoords;
             }
         }
     }
+
 
     return null;
 }
