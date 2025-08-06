@@ -133,34 +133,49 @@ function drawTile(x, y) {
     const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
     if (!tileInfo) return;
 
-    // To calculate shadows/sides correctly, we need to check neighbors in the *rotated* screen orientation
-    const rightNeighborRotated = x < gridSize - 1 ? getRotatedCoords(x + 1, y) : null;
-    const bottomNeighborRotated = y < gridSize - 1 ? getRotatedCoords(x, y + 1) : null;
+    // We are iterating through the grid in screen space (x, y).
+    // The two visible sides of a tile at (x,y) are the ones adjacent to
+    // the tiles at screen space (x+1, y) and (x, y+1).
 
-    const rightNeighbor = rightNeighborRotated ? map[rightNeighborRotated.y][rightNeighborRotated.x] : null;
-    const bottomNeighbor = bottomNeighborRotated ? map[bottomNeighborRotated.y][bottomNeighborRotated.x] : null;
-
-    // The side wall along the screen's X-axis direction (visually the "left" side of the tile)
-    const heightDiffX = rightNeighbor ? tile.height - rightNeighbor.height : tile.height;
-     if (heightDiffX > 0) {
-         ctx.fillStyle = tileInfo.side;
-         ctx.beginPath();
-         ctx.moveTo(screenPos.x, tileY);
-         ctx.lineTo(screenPos.x, tileY + heightDiffX * heightStep);
-         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + heightDiffX * heightStep);
-         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
-         ctx.closePath();
-         ctx.fill();
+    // Let's find the height of the neighbor at screen space (x+1, y).
+    let height_of_neighbor_x = 0; // Assume ground level if no neighbor
+    if (x < gridSize - 1) {
+        const neighbor_coords_in_map = getRotatedCoords(x + 1, y);
+        height_of_neighbor_x = map[neighbor_coords_in_map.y][neighbor_coords_in_map.x].height;
     }
 
-    // The side wall along the screen's Y-axis direction (visually the "right" side of the tile)
-    const heightDiffY = bottomNeighbor ? tile.height - bottomNeighbor.height : tile.height;
-    if (heightDiffY > 0) {
+    // Let's find the height of the neighbor at screen space (x, y+1).
+    let height_of_neighbor_y = 0; // Assume ground level if no neighbor
+    if (y < gridSize - 1) {
+        const neighbor_coords_in_map = getRotatedCoords(x, y + 1);
+        height_of_neighbor_y = map[neighbor_coords_in_map.y][neighbor_coords_in_map.x].height;
+    }
+
+    // Now, calculate the height difference for each wall.
+    const wall_height_for_x_face = tile.height - height_of_neighbor_x;
+    const wall_height_for_y_face = tile.height - height_of_neighbor_y;
+
+    // The face adjacent to screen (x+1, y) is the "left" face of the tile.
+    // The original code called this "Bottom side".
+    if (wall_height_for_x_face > 0) {
+        ctx.fillStyle = tileInfo.side;
+        ctx.beginPath();
+        ctx.moveTo(screenPos.x, tileY);
+        ctx.lineTo(screenPos.x, tileY + wall_height_for_x_face * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wall_height_for_x_face * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // The face adjacent to screen (x, y+1) is the "right" face of the tile.
+    // The original code called this "Right side".
+    if (wall_height_for_y_face > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
         ctx.moveTo(screenPos.x + isoTileWidth, tileY);
-        ctx.lineTo(screenPos.x + isoTileWidth, tileY + heightDiffY * heightStep);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + heightDiffY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY + wall_height_for_y_face * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wall_height_for_y_face * heightStep);
         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
         ctx.closePath();
         ctx.fill();
