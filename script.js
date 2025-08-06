@@ -67,37 +67,37 @@ function isoToScreen(x, y) {
 }
 
 function screenToIso(mouseX, mouseY) {
-    // Adjust mouse position to be relative to the center of the isometric grid space
-    const adjustedMouseX = mouseX - (canvas.width / 2);
-    // We also need to account for the tile's own height offset in the Y, which we can't know yet.
-    // So, we iterate through possible height levels. This is a simplification.
-    // A more accurate way would involve a more complex reverse projection.
-    const adjustedMouseY = mouseY - 100;
+    const adjustedMouseY = mouseY - 100; // Adjust for canvas top offset
 
-    // Reverse the isometric projection formula
-    const isoGridX = Math.floor(
-        (adjustedMouseX / (isoTileWidth / 2) + adjustedMouseY / (isoTileHeight / 2)) / 2
-    );
-    const isoGridY = Math.floor(
-        (adjustedMouseY / (isoTileHeight / 2) - adjustedMouseX / (isoTileWidth / 2)) / 2
-    );
-
-    // Now, apply the inverse rotation to these grid coordinates to get the original map coordinates
-    if (isoGridX >= 0 && isoGridX < gridSize && isoGridY >= 0 && isoGridY < gridSize) {
-        const mapCoords = getInverseRotatedCoords(isoGridX, isoGridY);
-        // Final check to ensure the calculated coordinates are within the map bounds
-        if (mapCoords.x >= 0 && mapCoords.x < gridSize && mapCoords.y >= 0 && mapCoords.y < gridSize) {
-             // We need to do a final check based on the tile height
+    // Iterate through the grid from front to back to respect draw order
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            // Get the actual map coordinates for this screen grid position
+            const mapCoords = getRotatedCoords(x, y);
             const tile = map[mapCoords.y][mapCoords.x];
-            const screenPos = isoToScreen(isoGridX, isoGridY);
+            const screenPos = isoToScreen(x, y);
             const tileY = screenPos.y - tile.height * heightStep;
 
-            if (Math.abs(mouseY - 100 - tileY) < isoTileHeight) {
-                 return mapCoords;
+            // Simple check if the mouse is within the general area of the tile
+            if (
+                mouseX >= screenPos.x &&
+                mouseX <= screenPos.x + isoTileWidth &&
+                adjustedMouseY >= tileY - isoTileHeight &&
+                adjustedMouseY <= tileY + isoTileHeight
+            ) {
+                 // More precise diamond check
+                const dx = mouseX - (screenPos.x + isoTileWidth / 2);
+                const dy = adjustedMouseY - tileY;
+
+                const transformedX = (dx / (isoTileWidth / 2)) + (dy / (isoTileHeight / 2));
+                const transformedY = (dy / (isoTileHeight / 2)) - (dx / (isoTileWidth / 2));
+
+                if (Math.abs(transformedX) < 1 && Math.abs(transformedY) < 1) {
+                    return mapCoords; // Return the actual map coordinates
+                }
             }
         }
     }
-
 
     return null;
 }
