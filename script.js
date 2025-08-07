@@ -133,49 +133,50 @@ function drawTile(x, y) {
     const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
     if (!tileInfo) return;
 
-    // We are iterating through the grid in screen space (x, y).
-    // The two visible sides of a tile at (x,y) are the ones adjacent to
-    // the tiles at screen space (x+1, y) and (x, y+1).
+    // To draw the walls correctly, we need to find the height of the two neighboring
+    // tiles that are "behind" the current tile from the camera's perspective.
+    // In our isometric projection, these are always the neighbors in the positive
+    // x and y directions of the *screen grid*.
 
-    // Let's find the height of the neighbor at screen space (x+1, y).
-    let height_of_neighbor_x = 0; // Assume ground level if no neighbor
+    // Get the height of the neighbor in the +X direction of the screen grid.
+    let neighborHeightX = 0;
     if (x < gridSize - 1) {
-        const neighbor_coords_in_map = getRotatedCoords(x + 1, y);
-        height_of_neighbor_x = map[neighbor_coords_in_map.y][neighbor_coords_in_map.x].height;
+        const neighborCoords = getRotatedCoords(x + 1, y);
+        neighborHeightX = map[neighborCoords.y][neighborCoords.x].height;
     }
 
-    // Let's find the height of the neighbor at screen space (x, y+1).
-    let height_of_neighbor_y = 0; // Assume ground level if no neighbor
+    // Get the height of the neighbor in the +Y direction of the screen grid.
+    let neighborHeightY = 0;
     if (y < gridSize - 1) {
-        const neighbor_coords_in_map = getRotatedCoords(x, y + 1);
-        height_of_neighbor_y = map[neighbor_coords_in_map.y][neighbor_coords_in_map.x].height;
+        const neighborCoords = getRotatedCoords(x, y + 1);
+        neighborHeightY = map[neighborCoords.y][neighborCoords.x].height;
     }
 
-    // Now, calculate the height difference for each wall.
-    const wall_height_for_x_face = tile.height - height_of_neighbor_x;
-    const wall_height_for_y_face = tile.height - height_of_neighbor_y;
+    // Calculate the height difference for the two visible walls.
+    const wallHeightX = tile.height - neighborHeightX;
+    const wallHeightY = tile.height - neighborHeightY;
 
-    // The face adjacent to screen (x+1, y) is the "left" face of the tile.
-    // The original code called this "Bottom side".
-    if (wall_height_for_x_face > 0) {
+    // Draw the wall for the face adjacent to the screen neighbor in the +X direction.
+    // This is the "left" face of the tile from the camera's perspective.
+    if (wallHeightX > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
         ctx.moveTo(screenPos.x, tileY);
-        ctx.lineTo(screenPos.x, tileY + wall_height_for_x_face * heightStep);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wall_height_for_x_face * heightStep);
+        ctx.lineTo(screenPos.x, tileY + wallHeightX * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightX * heightStep);
         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
         ctx.closePath();
         ctx.fill();
     }
 
-    // The face adjacent to screen (x, y+1) is the "right" face of the tile.
-    // The original code called this "Right side".
-    if (wall_height_for_y_face > 0) {
+    // Draw the wall for the face adjacent to the screen neighbor in the +Y direction.
+    // This is the "right" face of the tile from the camera's perspective.
+    if (wallHeightY > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
         ctx.moveTo(screenPos.x + isoTileWidth, tileY);
-        ctx.lineTo(screenPos.x + isoTileWidth, tileY + wall_height_for_y_face * heightStep);
-        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wall_height_for_y_face * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY + wallHeightY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightY * heightStep);
         ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
         ctx.closePath();
         ctx.fill();
