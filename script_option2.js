@@ -61,7 +61,7 @@ function getInverseRotatedCoords(x, y) {
 }
 
 function isoToScreen(x, y) {
-    const screenX = (x - y) * (isoTileWidth / 2);
+    const screenX = (x - y) * (isoTileWidth / 2) + (canvas.width / 2) - (isoTileWidth / 2);
     const screenY = (x + y) * (isoTileHeight / 2);
     return { x: screenX, y: screenY };
 }
@@ -197,24 +197,17 @@ function drawLeftSide(screenPos, tileY, diff, tileInfo) {
 }
 
 function drawTile(x, y) {
-    ctx.save();
-
-    // Get tile data
     const rotated = getRotatedCoords(x, y);
     const tile = map[rotated.y][rotated.x];
-    const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
-    if (!tileInfo) {
-        ctx.restore();
-        return;
-    }
-
-    // Translate to tile's position
     const screenPos = isoToScreen(x, y);
-    ctx.translate(screenPos.x, screenPos.y);
+    const tileY = screenPos.y - tile.height * heightStep;
 
-    const tileY = -tile.height * heightStep;
+    const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
+    if (!tileInfo) return;
 
-    // Get neighbor heights (using simple screen-space logic)
+    const neighbors = get_map_neighbors(rotated.x, rotated.y);
+
+    // Get the heights of the neighbors in screen space.
     let neighborHeightX = 0;
     if (x < gridSize - 1) {
         const neighborCoords = getRotatedCoords(x + 1, y);
@@ -229,50 +222,41 @@ function drawTile(x, y) {
     const wallHeightX = tile.height - neighborHeightX;
     const wallHeightY = tile.height - neighborHeightY;
 
-    // Draw geometry relative to (0,0)
-    // RIGHT wall (adjacent to screen y+1)
-    if (wallHeightY > 0) {
-        ctx.fillStyle = tileInfo.side;
-        ctx.beginPath();
-        ctx.moveTo(isoTileWidth, tileY);
-        ctx.lineTo(isoTileWidth, tileY + wallHeightY * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightY * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
-        ctx.closePath();
-        ctx.fill();
+    switch (rotation) {
+        case 0:
+            if (wallHeightY > 0) drawRightSide(screenPos, tileY, wallHeightY, tileInfo);
+            if (wallHeightX > 0) drawBottomSide(screenPos, tileY, wallHeightX, tileInfo);
+            break;
+        case 1:
+            if (wallHeightX > 0) drawLeftSide(screenPos, tileY, wallHeightX, tileInfo);
+            if (wallHeightY > 0) drawBottomSide(screenPos, tileY, wallHeightY, tileInfo);
+            break;
+        case 2:
+            if (wallHeightY > 0) drawLeftSide(screenPos, tileY, wallHeightY, tileInfo);
+            if (wallHeightX > 0) drawTopSide(screenPos, tileY, wallHeightX, tileInfo);
+            break;
+        case 3:
+            if (wallHeightX > 0) drawRightSide(screenPos, tileY, wallHeightX, tileInfo);
+            if (wallHeightY > 0) drawTopSide(screenPos, tileY, wallHeightY, tileInfo);
+            break;
     }
 
-    // BOTTOM wall (adjacent to screen x+1)
-    if (wallHeightX > 0) {
-        ctx.fillStyle = tileInfo.side;
-        ctx.beginPath();
-        ctx.moveTo(0, tileY);
-        ctx.lineTo(0, tileY + wallHeightX * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightX * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
-        ctx.closePath();
-        ctx.fill();
-    }
 
-    // TOP face
+    // Top face
     ctx.fillStyle = tileInfo.top;
     ctx.beginPath();
-    ctx.moveTo(0, tileY);
-    ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
-    ctx.lineTo(isoTileWidth, tileY);
-    ctx.lineTo(isoTileWidth / 2, tileY - isoTileHeight / 2);
+    ctx.moveTo(screenPos.x, tileY);
+    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+    ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
     ctx.closePath();
     ctx.fill();
-
-    ctx.restore();
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
-
-    // Apply a global translation to center the grid
-    ctx.translate(canvas.width / 2 - isoTileWidth / 2, 100);
+    ctx.translate(0, 100);
 
     // Draw tiles
     for (let y = 0; y < gridSize; y++) {
@@ -291,23 +275,19 @@ function draw() {
                 if (rotated.x === hoveredTile.x && rotated.y === hoveredTile.y) {
                     const tile = map[hoveredTile.y][hoveredTile.x];
                     const screenPos = isoToScreen(x, y);
-                    const tileY = -tile.height * heightStep;
-
-                    ctx.save();
-                    ctx.translate(screenPos.x, screenPos.y);
+                    const tileY = screenPos.y - tile.height * heightStep;
 
                     ctx.strokeStyle = '#f6e05e'; // Bright yellow
                     ctx.lineWidth = 3;
                     ctx.globalAlpha = 0.9;
                     ctx.beginPath();
-                    ctx.moveTo(0, tileY);
-                    ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
-                    ctx.lineTo(isoTileWidth, tileY);
-                    ctx.lineTo(isoTileWidth / 2, tileY - isoTileHeight / 2);
+                    ctx.moveTo(screenPos.x, tileY);
+                    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+                    ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+                    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
                     ctx.closePath();
                     ctx.stroke();
-
-                    ctx.restore();
+                    ctx.globalAlpha = 1.0; // Reset alpha
                     break;
                 }
             }
@@ -327,12 +307,9 @@ function draw() {
                  const objectInfo = OBJECT_TYPES[obj.type];
                  const tile = map[rotated.y][rotated.x];
                  const screenPos = isoToScreen(x, y);
-                 const objY = -tile.height * heightStep;
+                 const objY = screenPos.y - tile.height * heightStep;
                  if (objectInfo) {
-                    ctx.save();
-                    ctx.translate(screenPos.x, screenPos.y);
-                    ctx.fillText(objectInfo.symbol, isoTileWidth / 2, objY);
-                    ctx.restore();
+                    ctx.fillText(objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
                  }
             }
         }

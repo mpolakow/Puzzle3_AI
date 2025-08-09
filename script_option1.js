@@ -61,7 +61,7 @@ function getInverseRotatedCoords(x, y) {
 }
 
 function isoToScreen(x, y) {
-    const screenX = (x - y) * (isoTileWidth / 2);
+    const screenX = (x - y) * (isoTileWidth / 2) + (canvas.width / 2) - (isoTileWidth / 2);
     const screenY = (x + y) * (isoTileHeight / 2);
     return { x: screenX, y: screenY };
 }
@@ -124,155 +124,80 @@ function generateMap() {
     }
 }
 
-function get_map_neighbors(mapX, mapY) {
-    const neighbors = {
-        north: null,
-        south: null,
-        east: null,
-        west: null,
-    };
-
-    if (mapY > 0) {
-        neighbors.north = map[mapY - 1][mapX];
-    }
-    if (mapY < gridSize - 1) {
-        neighbors.south = map[mapY + 1][mapX];
-    }
-    if (mapX < gridSize - 1) {
-        neighbors.east = map[mapY][mapX + 1];
-    }
-    if (mapX > 0) {
-        neighbors.west = map[mapY][mapX - 1];
-    }
-
-    return neighbors;
-}
-
-function drawRightSide(screenPos, tileY, diff, tileInfo) {
-    ctx.fillStyle = tileInfo.side;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x + isoTileWidth, tileY);
-    ctx.lineTo(screenPos.x + isoTileWidth, tileY + diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
-    ctx.closePath();
-    ctx.fill();
-}
-
-function drawBottomSide(screenPos, tileY, diff, tileInfo) {
-    ctx.fillStyle = tileInfo.side;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, tileY);
-    ctx.lineTo(screenPos.x, tileY + diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
-    ctx.closePath();
-    ctx.fill();
-}
-
-function drawTopSide(screenPos, tileY, diff, tileInfo) {
-    // This is the face that is not normally visible
-    // It's the opposite of the bottom side
-    ctx.fillStyle = tileInfo.side;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x + isoTileWidth, tileY);
-    ctx.lineTo(screenPos.x + isoTileWidth, tileY - diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2 - diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
-    ctx.closePath();
-    ctx.fill();
-}
-
-function drawLeftSide(screenPos, tileY, diff, tileInfo) {
-    // This is the face that is not normally visible
-    // It's the opposite of the right side
-    ctx.fillStyle = tileInfo.side;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, tileY);
-    ctx.lineTo(screenPos.x, tileY - diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2 - diff * heightStep);
-    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
-    ctx.closePath();
-    ctx.fill();
-}
-
 function drawTile(x, y) {
-    ctx.save();
-
-    // Get tile data
     const rotated = getRotatedCoords(x, y);
     const tile = map[rotated.y][rotated.x];
-    const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
-    if (!tileInfo) {
-        ctx.restore();
-        return;
-    }
-
-    // Translate to tile's position
     const screenPos = isoToScreen(x, y);
-    ctx.translate(screenPos.x, screenPos.y);
+    const tileY = screenPos.y - tile.height * heightStep;
 
-    const tileY = -tile.height * heightStep;
+    const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
+    if (!tileInfo) return;
 
-    // Get neighbor heights (using simple screen-space logic)
+    // To draw the walls correctly, we need to find the height of the two neighboring
+    // tiles that are "behind" the current tile from the camera's perspective.
+    // In our isometric projection, these are always the neighbors in the positive
+    // x and y directions of the *screen grid*.
+
+    // Get the height of the neighbor in the +X direction of the screen grid.
     let neighborHeightX = 0;
     if (x < gridSize - 1) {
         const neighborCoords = getRotatedCoords(x + 1, y);
         neighborHeightX = map[neighborCoords.y][neighborCoords.x].height;
     }
+
+    // Get the height of the neighbor in the +Y direction of the screen grid.
     let neighborHeightY = 0;
     if (y < gridSize - 1) {
         const neighborCoords = getRotatedCoords(x, y + 1);
         neighborHeightY = map[neighborCoords.y][neighborCoords.x].height;
     }
 
+    // Calculate the height difference for the two visible walls.
     const wallHeightX = tile.height - neighborHeightX;
     const wallHeightY = tile.height - neighborHeightY;
 
-    // Draw geometry relative to (0,0)
-    // RIGHT wall (adjacent to screen y+1)
+    // Draw the wall for the face adjacent to the screen neighbor in the +Y direction.
+    // This is the "right" face of the tile from the camera's perspective.
     if (wallHeightY > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
-        ctx.moveTo(isoTileWidth, tileY);
-        ctx.lineTo(isoTileWidth, tileY + wallHeightY * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightY * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
+        ctx.moveTo(screenPos.x + isoTileWidth, tileY);
+        ctx.lineTo(screenPos.x + isoTileWidth, tileY + wallHeightY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightY * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
         ctx.closePath();
         ctx.fill();
     }
 
-    // BOTTOM wall (adjacent to screen x+1)
+    // Draw the wall for the face adjacent to the screen neighbor in the +X direction.
+    // This is the "left" face of the tile from the camera's perspective.
     if (wallHeightX > 0) {
         ctx.fillStyle = tileInfo.side;
         ctx.beginPath();
-        ctx.moveTo(0, tileY);
-        ctx.lineTo(0, tileY + wallHeightX * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightX * heightStep);
-        ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
+        ctx.moveTo(screenPos.x, tileY);
+        ctx.lineTo(screenPos.x, tileY + wallHeightX * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2 + wallHeightX * heightStep);
+        ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
         ctx.closePath();
         ctx.fill();
     }
 
-    // TOP face
+
+    // Top face
     ctx.fillStyle = tileInfo.top;
     ctx.beginPath();
-    ctx.moveTo(0, tileY);
-    ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
-    ctx.lineTo(isoTileWidth, tileY);
-    ctx.lineTo(isoTileWidth / 2, tileY - isoTileHeight / 2);
+    ctx.moveTo(screenPos.x, tileY);
+    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+    ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
     ctx.closePath();
     ctx.fill();
-
-    ctx.restore();
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
-
-    // Apply a global translation to center the grid
-    ctx.translate(canvas.width / 2 - isoTileWidth / 2, 100);
+    ctx.translate(0, 100);
 
     // Draw tiles
     for (let y = 0; y < gridSize; y++) {
@@ -291,23 +216,19 @@ function draw() {
                 if (rotated.x === hoveredTile.x && rotated.y === hoveredTile.y) {
                     const tile = map[hoveredTile.y][hoveredTile.x];
                     const screenPos = isoToScreen(x, y);
-                    const tileY = -tile.height * heightStep;
-
-                    ctx.save();
-                    ctx.translate(screenPos.x, screenPos.y);
+                    const tileY = screenPos.y - tile.height * heightStep;
 
                     ctx.strokeStyle = '#f6e05e'; // Bright yellow
                     ctx.lineWidth = 3;
                     ctx.globalAlpha = 0.9;
                     ctx.beginPath();
-                    ctx.moveTo(0, tileY);
-                    ctx.lineTo(isoTileWidth / 2, tileY + isoTileHeight / 2);
-                    ctx.lineTo(isoTileWidth, tileY);
-                    ctx.lineTo(isoTileWidth / 2, tileY - isoTileHeight / 2);
+                    ctx.moveTo(screenPos.x, tileY);
+                    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY + isoTileHeight / 2);
+                    ctx.lineTo(screenPos.x + isoTileWidth, tileY);
+                    ctx.lineTo(screenPos.x + isoTileWidth / 2, tileY - isoTileHeight / 2);
                     ctx.closePath();
                     ctx.stroke();
-
-                    ctx.restore();
+                    ctx.globalAlpha = 1.0; // Reset alpha
                     break;
                 }
             }
@@ -327,12 +248,9 @@ function draw() {
                  const objectInfo = OBJECT_TYPES[obj.type];
                  const tile = map[rotated.y][rotated.x];
                  const screenPos = isoToScreen(x, y);
-                 const objY = -tile.height * heightStep;
+                 const objY = screenPos.y - tile.height * heightStep;
                  if (objectInfo) {
-                    ctx.save();
-                    ctx.translate(screenPos.x, screenPos.y);
-                    ctx.fillText(objectInfo.symbol, isoTileWidth / 2, objY);
-                    ctx.restore();
+                    ctx.fillText(objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
                  }
             }
         }
