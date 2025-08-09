@@ -180,17 +180,67 @@ function draw() {
     ctx.save();
     ctx.translate(0, 100);
 
-    // Draw tiles
+    // 1. Create a list of all drawable entities
+    const drawableEntities = [];
+
+    // Add tiles to the list
     for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
-            drawTile(x, y);
+            drawableEntities.push({
+                type: 'tile',
+                x: x,
+                y: y,
+                z: map[y][x].height,
+            });
         }
     }
 
-    // Draw highlight on top of the hovered tile
+    // Add objects to the list
+    for (const obj of objects) {
+        if (!map[obj.y] || !map[obj.y][obj.x]) continue;
+        const tileHeight = map[obj.y][obj.x].height;
+        drawableEntities.push({
+            type: 'object',
+            x: obj.x,
+            y: obj.y,
+            z: tileHeight + 0.1, // Add a small offset to ensure objects are drawn on top of their tiles
+            objectInfo: OBJECT_TYPES[obj.type]
+        });
+    }
+
+    // 2. Sort the entities based on the sum of their world coordinates
+    drawableEntities.sort((a, b) => {
+        const sumA = a.x + a.y + a.z;
+        const sumB = b.x + b.y + b.z;
+        return sumB - sumA;
+    });
+
+    // 3. Draw the sorted entities
+    for (const entity of drawableEntities) {
+        // We need to find the screen grid coordinates for the entity's map coordinates
+        const screenGridPos = getInverseRotatedCoords(entity.x, entity.y);
+
+        if (entity.type === 'tile') {
+            // The drawTile function expects the screen grid coordinates
+            drawTile(screenGridPos.x, screenGridPos.y);
+        } else if (entity.type === 'object') {
+            // The object drawing logic, adapted for the new structure
+            const tile = map[entity.y][entity.x];
+            const screenPos = isoToScreen(screenGridPos.x, screenGridPos.y);
+            const objY = screenPos.y - tile.height * heightStep;
+            if (entity.objectInfo) {
+                ctx.font = `${isoTileHeight * 0.9}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(entity.objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
+            }
+        }
+    }
+
+
+    // Draw highlight on top of the hovered tile (must be done last)
     if (hoveredTile) {
-        // We need to find the screen position of the hovered tile
-        // by iterating through the grid and finding the matching original coordinates.
+        // This logic remains largely the same, as it needs to be drawn on top of everything.
         for (let y = 0; y < gridSize; y++) {
             for (let x = 0; x < gridSize; x++) {
                 const rotated = getRotatedCoords(x, y);
@@ -212,27 +262,6 @@ function draw() {
                     ctx.globalAlpha = 1.0; // Reset alpha
                     break;
                 }
-            }
-        }
-    }
-
-
-    // Draw objects
-    ctx.font = `${isoTileHeight * 0.9}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-     for (let y = 0; y < gridSize; y++) {
-        for (let x = 0; x < gridSize; x++) {
-            const rotated = getRotatedCoords(x, y);
-            const obj = objects.find(o => o.x === rotated.x && o.y === rotated.y);
-            if (obj) {
-                 const objectInfo = OBJECT_TYPES[obj.type];
-                 const tile = map[rotated.y][rotated.x];
-                 const screenPos = isoToScreen(x, y);
-                 const objY = screenPos.y - tile.height * heightStep;
-                 if (objectInfo) {
-                    ctx.fillText(objectInfo.symbol, screenPos.x + isoTileWidth / 2, objY);
-                 }
             }
         }
     }
