@@ -17,17 +17,19 @@ canvas.height = (gridSize * isoTileHeight / 2) + 400; // Extra height for tall m
 
 // --- Tile & Object Definitions ---
 const TILE_TYPES = {
-    GRASS: { id: 0, top: '#68d391', side: '#48bb78' },
-    WATER: { id: 1, top: '#4299e1', side: '#3182ce' },
-    STONE: { id: 2, top: '#a0aec0', side: '#718096' },
-    SAND: { id: 3, top: '#f6e05e', side: '#ecc94b' },
+    PLAINS: { id: 0, name: 'Plains', priority: 10, top: '#68d391', side: '#48bb78' },
+    FOREST: { id: 4, name: 'Forest', priority: 20, top: '#38a169', side: '#2f855a' },
+    FARMLAND: { id: 5, name: 'Farmland', priority: 30, top: '#d69e2e', side: '#b7791f' },
+    WATER: { id: 1, name: 'Water', priority: 5, top: '#4299e1', side: '#3182ce' },
+    STONE: { id: 2, name: 'Stone', priority: 15, top: '#a0aec0', side: '#718096' },
+    SAND: { id: 3, name: 'Sand', priority: 12, top: '#f6e05e', side: '#ecc94b' },
 };
 
 const OBJECT_TYPES = {
     fountain: { symbol: '?', effect: 'raise_water' },
     excavator: { symbol: '??', effect: 'lower_terrain' },
     obelisk: { symbol: '??', effect: 'raise_terrain' },
-    tree: { symbol: '??', effect: 'spread_grass' },
+    tree: { symbol: '??', effect: 'spread_plains' },
 };
 
 let map = [];
@@ -106,11 +108,13 @@ function screenToIso(mouseX, mouseY) {
 
 function generateMap() {
     map = [];
+    const landTiles = [TILE_TYPES.PLAINS, TILE_TYPES.FOREST, TILE_TYPES.FARMLAND];
     for (let y = 0; y < gridSize; y++) {
         map[y] = [];
         for (let x = 0; x < gridSize; x++) {
             const height = Math.floor(Math.random() * 2) + 1;
-            map[y][x] = { type: TILE_TYPES.GRASS.id, height: height };
+            const randomTile = landTiles[Math.floor(Math.random() * landTiles.length)];
+            map[y][x] = { type: randomTile.id, height: height };
         }
     }
     const lakeY = Math.floor(gridSize / 2);
@@ -254,8 +258,8 @@ function updateMap() {
             if (obj.effect === 'raise_water' && neighborTile.type !== TILE_TYPES.WATER.id) {
                  changes.push({ x: n.x, y: n.y, type: TILE_TYPES.WATER.id, height: tile.height });
             }
-            if (obj.effect === 'spread_grass' && neighborTile.type !== TILE_TYPES.GRASS.id) {
-                 changes.push({ x: n.x, y: n.y, type: TILE_TYPES.GRASS.id });
+            if (obj.effect === 'spread_plains' && neighborTile.type !== TILE_TYPES.PLAINS.id) {
+                 changes.push({ x: n.x, y: n.y, type: TILE_TYPES.PLAINS.id });
             }
         });
     });
