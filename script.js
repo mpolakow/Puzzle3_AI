@@ -17,9 +17,9 @@ canvas.height = (gridSize * isoTileHeight / 2) + 400; // Extra height for tall m
 
 // --- Tile & Object Definitions ---
 const TILE_TYPES = {
-    PLAINS: { id: 0, name: 'Plains', priority: 10, top: '#68d391', side: '#48bb78' },
-    FOREST: { id: 4, name: 'Forest', priority: 20, top: '#38a169', side: '#2f855a' },
-    FARMLAND: { id: 5, name: 'Farmland', priority: 30, top: '#d69e2e', side: '#b7791f' },
+    PLAINS: { id: 0, name: 'Plains', priority: 10, top: '#68d391', side: '#48bb78', sceneryImage: 'assets/images/plains.png' },
+    FOREST: { id: 4, name: 'Forest', priority: 20, top: '#38a169', side: '#2f855a', sceneryImage: 'assets/images/forest.png' },
+    FARMLAND: { id: 5, name: 'Farmland', priority: 30, top: '#d69e2e', side: '#b7791f', sceneryImage: 'assets/images/farmland.png' },
     WATER: { id: 1, name: 'Water', priority: 5, top: '#4299e1', side: '#3182ce' },
     STONE: { id: 2, name: 'Stone', priority: 15, top: '#a0aec0', side: '#718096' },
     SAND: { id: 3, name: 'Sand', priority: 12, top: '#f6e05e', side: '#ecc94b' },
@@ -31,6 +31,27 @@ const OBJECT_TYPES = {
     obelisk: { symbol: '??', effect: 'raise_terrain' },
     tree: { symbol: '??', effect: 'spread_plains' },
 };
+
+let sceneryImages = {};
+
+function preloadImages() {
+    const promises = [];
+    for (const type of Object.values(TILE_TYPES)) {
+        if (type.sceneryImage) {
+            const promise = new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    sceneryImages[type.sceneryImage] = img;
+                    resolve();
+                };
+                img.onerror = reject;
+                img.src = type.sceneryImage;
+            });
+            promises.push(promise);
+        }
+    }
+    return Promise.all(promises);
+}
 
 let map = [];
 let objects = [];
@@ -188,6 +209,33 @@ function draw() {
     for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
             drawTile(x, y);
+        }
+    }
+
+    // Draw scenery images on top of tiles
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const rotated = getRotatedCoords(x, y);
+            const tile = map[rotated.y][rotated.x];
+            const tileInfo = Object.values(TILE_TYPES).find(t => t.id === tile.type);
+
+            if (tileInfo && tileInfo.sceneryImage && sceneryImages[tileInfo.sceneryImage]) {
+                const screenPos = isoToScreen(x, y);
+                const tileY = screenPos.y - tile.height * heightStep;
+                const img = sceneryImages[tileInfo.sceneryImage];
+
+                // Resize the image to fit the tile, maintaining aspect ratio
+                const scale = 0.9;
+                const aspect = img.width / img.height;
+                const dWidth = isoTileWidth * scale;
+                const dHeight = dWidth / aspect;
+
+                // Position the image to sit on top of the tile
+                const dx = screenPos.x + (isoTileWidth - dWidth) / 2;
+                const dy = tileY - dHeight + (isoTileHeight / 2); // Align bottom of image with tile center
+
+                ctx.drawImage(img, dx, dy, dWidth, dHeight);
+            }
         }
     }
 
@@ -353,7 +401,7 @@ function resetGame() {
     generateMap();
 }
 
-// --- Initialization ---
+// --- Event Handlers Setup ---
 canvas.addEventListener('click', handleCanvasClick);
 canvas.addEventListener('mousemove', handleCanvasMouseMove);
 canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
@@ -368,5 +416,12 @@ toolButtons.forEach(button => {
     button.addEventListener('click', handleToolSelect);
 });
 
-resetGame();
-requestAnimationFrame(gameLoop);
+// --- Initialization ---
+preloadImages().then(() => {
+    resetGame();
+    requestAnimationFrame(gameLoop);
+}).catch(err => {
+    console.error("Failed to load images", err);
+    messageBox.textContent = "Error: Could not load tile images. Please refresh.";
+    messageBox.classList.add('show');
+});
